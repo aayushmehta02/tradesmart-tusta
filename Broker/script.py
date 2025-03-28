@@ -33,7 +33,7 @@ def load_combined_instruments(file_path: str) -> pd.DataFrame:
 class TradeSmart(TradeSmartLogin):
     exchange_data: pd.DataFrame = None
 
-    def initialize_data(self):
+    def __init__(self):
         # exchange_data: pd.DataFrame = None
         TradeSmart.exchange_data = load_combined_instruments(r"C:\Users\aayus\OneDrive\Desktop\finance-browser\combined_instruments.csv")
         self.nfo_df = self.exchange_data[self.exchange_data['Exchange'] == 'NFO']
@@ -283,12 +283,12 @@ class TradeSmart(TradeSmartLogin):
 # ---- Test usage ---- #
 if __name__ == "__main__":
     creds = {
-        "user": "YMUK581",
-        "pwd": "YWbu#927",
-        "factor2": "ZS765W3OM3J4A7F2BDEB6M43MO5HA665",
-        "vc": "TUSTA",
-        "app_key": "TUSTA25032025API",
-        "imei": "HEMANGMAC"
+        "user": "",
+        "pwd": "",
+        "factor2": "",
+        "vc": "",
+        "app_key": "",
+        "imei": ""
     }
 
     ts = TradeSmart(**creds)
