@@ -36,13 +36,7 @@ class TradeSmart(TradeSmartLogin):
     def initialize_data(self):
         # exchange_data: pd.DataFrame = None
         TradeSmart.exchange_data = load_combined_instruments(r"C:\Users\aayus\OneDrive\Desktop\finance-browser\combined_instruments.csv")
-        self.nfo_df = self.exchange_data[self.exchange_data['Exchange'] == 'NFO']
-        self.nse_df = self.exchange_data[self.exchange_data['Exchange'] == 'NSE']
-        self.bse_df = self.exchange_data[self.exchange_data['Exchange'] == 'BSE']
-        self.mcx_df = self.exchange_data[self.exchange_data['Exchange'] == 'MCX']
-        self.bcd_df = self.exchange_data[self.exchange_data['Exchange'] == 'BCD']
-        self.cds_df = self.exchange_data[self.exchange_data['Exchange'] == 'CDS']
-        self.bfo_df = self.exchange_data[self.exchange_data['Exchange'] == 'BFO']
+        
         print("Instrument data loaded successfully")
 
     def get_funds_available(self):
@@ -54,48 +48,40 @@ class TradeSmart(TradeSmartLogin):
 
             if df is None or df.empty:
                 print(f"No data available for exchange {exchange}")
-                return {
-                    'status': 'Not Found',
-                    'results_count': 0,
-                    'values': []
-                }
+                return 0
 
             searchtext = searchtext.upper()
+            print(f"Searching for {searchtext} in {exchange}")
 
-            mask = df.apply(lambda row: any(
-                searchtext in str(val).upper()
-                for val in [
-                    row.get('TradingSymbol', ''), 
-                    row.get('Symbol', ''),
-                    row.get('instrument_type', '')
-                ]
-            ), axis=1)
+            # First try exact match
+            result = df[df['TradingSymbol'] == searchtext]
+            if result.empty:
+                # If no exact match, try partial match
+                result = df[df['TradingSymbol'].str.contains(searchtext, case=False, na=False)]
 
-            result = df[mask]
-            print("result", result)
+            print("Found matches:", result['TradingSymbol'].tolist() if not result.empty else "None")
 
             if not result.empty:
-                token = self.get_token_details(result['Exchange'].iloc[0], result['Symbol'].iloc[0])
-                print("token", token[0])
-               
+                # Get token directly from the DataFrame
+                token = str(result['Token'].iloc[0])
+                trading_symbol = result['TradingSymbol'].iloc[0]
+                print(f"Using token {token} for {trading_symbol}")
 
-                get_ltp = self.get_quotes(result['Exchange'].iloc[0], str(token[0]))
-                return get_ltp.get('lp')
+                get_ltp = self.get_quotes(exchange, token)
+                if get_ltp and 'lp' in get_ltp:
+                    ltp = float(get_ltp.get('lp', 0))
+                    print(f"LTP found: {ltp}")
+                    return ltp
+                else:
+                    print("No LTP found in quotes response")
+                    return 0
 
             print(f"No matches found for '{searchtext}' in {exchange}")
-            return {
-                'status': 'Not Found',
-                'results_count': 0,
-                'values': []
-            }
+            return 0
 
         except Exception as e:
-            print(f"Error searching script: {e}")
-            return {
-                'status': 'Error',
-                'error_message': str(e),
-                'values': []
-            }
+            print(f"Error in get_ltp: {str(e)}")
+            return 0
 
     def cancel_order_on_broker(self, order_id):
         response = self.cancel_order(orderno=order_id)
@@ -154,20 +140,20 @@ class TradeSmart(TradeSmartLogin):
     def place_order_on_broker(self, symbol, qty, exchange, buy_sell, order_type, price, is_paper=False, is_overnight=False):
         try:
             product = 'I'
-            if exchange in ['NFO', 'CDS', 'MCX', 'BFO', 'BCD']:
-                product = 'N'
+            if exchange in ['NFO', 'CDS', 'MCX', 'BFO', 'BCD'] and is_overnight:
+                product = 'M'
             elif is_overnight:
                 product = "C"
 
             # Define order parameters
             order_params = {
-                "tsym": symbol,
+                "tradingsymbol": symbol,
                 "exch": exchange,
-                "trantype": buy_sell,
-                "qty": qty,
-                "prctyp": order_type,
+                "transaction_type": buy_sell,
+                "quantity": qty,
+                "order_type": order_type,
                 "price": price if order_type == "LIMIT" else 0,
-                "prd": product,
+                "product": product,
                 "validity": "DAY"
             }
             average_price = 0
@@ -182,11 +168,11 @@ class TradeSmart(TradeSmartLogin):
                     tradingsymbol=symbol,
                     quantity=qty,
                     discloseqty=0,
-                    price_type='SL-LMT',
+                    price_type='MKT',
                     price=price,
-                    trigger_price=199.50,
+                    trigger_price=0,
                     retention='DAY',
-                    remarks='my_order_001'
+                    remarks='TUSTA'
                 )
 
                 if ret is None:
@@ -216,6 +202,7 @@ class TradeSmart(TradeSmartLogin):
                 if order_status is None:
                     return None, None, "Failed to fetch order status during polling"
                 latest_status = order_status[-1]
+                
 
                
 
@@ -223,8 +210,6 @@ class TradeSmart(TradeSmartLogin):
                 print("Latest Order Status:", latest_status.get("status"))
 
                 status = latest_status.get("status")
-
-
                 print("Order Status:", status)
                 
 
@@ -234,7 +219,7 @@ class TradeSmart(TradeSmartLogin):
                         average_price = holdings[-1].get("upldprc", 0)
                         print(f"Average price: {average_price}")
                 elif status == "REJECTED":
-                    rejection_reason = order_status.get[-1]('rejreason', 'Unknown reason')
+                    rejection_reason = order_status[-1].get('rejreason', 'Unknown reason')
                     print(f"Order rejected: {rejection_reason}")
                     if "Insufficient balance" in rejection_reason:
                         return None, None, "Order placement failed due to insufficient funds."
@@ -243,10 +228,14 @@ class TradeSmart(TradeSmartLogin):
                 else:
                  
                     # Poll for order status
+                    t=0
+                while t <3:
                     time.sleep(0.5)
                     order_status = self.single_order_history(orderno)
-                    latest_status = order_status[-1]
-                    status = latest_status.get("status")
+                    if order_status:
+                        break
+                    else:
+                        t+=1
                    
                     if status == 'COMPLETE':
                         average_price = order_status[-1].get('upldprc', 0)
@@ -261,6 +250,16 @@ class TradeSmart(TradeSmartLogin):
             else:
                 order_id = 'Paper' + str(uuid.uuid4())
                 print(f"Paper trade created with ID: {order_id}")
+            # Get the last traded price if needed
+            if 'average_price' not in locals() or average_price == 0:
+                ltp_data = self.get_ltp(exchange, symbol)
+                average_price = ltp_data
+            print("average_price", ltp_data)
+            order_params['ltp'] = str(average_price)
+            # todo: format order_params
+            order_params['transaction_type'] = buy_sell
+            order_params['tradingsymbol'] = str(symbol)
+
 
             return order_id, order_params, None
 
@@ -271,18 +270,19 @@ class TradeSmart(TradeSmartLogin):
 # ---- Test usage ---- #
 if __name__ == "__main__":
     creds = {
-        "user": "",
-        "pwd": "",
-        "factor2": "",
-        "vc": "",
-        "app_key": "",
-        "imei": ""
+        "user": "YMUK581",
+        "pwd": "YWbu#927",
+        "factor2": "ZS765W3OM3J4A7F2BDEB6M43MO5HA665",
+        "vc": "TUSTA",
+        "app_key": "TUSTA25032025API",
+        "imei": "HEMANGMAC"
     }
 
     ts = TradeSmart(**creds)
     ts.initialize_data()
-    print("\nTesting BANKNIFTY weekly CE:")
-    print(ts.get_token_details('NFO', 'BANKNIFTY', '46000', is_pe=0, expiry='W', instrumenttype='OPTIDX'))
-    print("get_ltp", ts.get_ltp('NSE', 'RELIANCE'))
+    # print("\nTesting BANKNIFTY weekly CE:")
+    # print(ts.get_token_details('NFO', 'BANKNIFTY', '46000', is_pe=0, expiry='W', instrumenttype='OPTIDX'))
+    print("get_ltp", ts.get_ltp('NSE', 'BANKNIFTY1-EQ'))
     print("\nTesting SENSEX monthly CE:")
     print(ts.get_token_details('BFO', 'SENSEX', '72000', is_pe=0, expiry='M', instrumenttype='OPTIDX'))
+    print(ts.place_order_on_broker('BANKNIFTY24APR25C46000', 30, 'NFO', 'B', 'MARKET', 0, is_paper=True, is_overnight=False))
