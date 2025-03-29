@@ -270,12 +270,12 @@ class TradeSmart(TradeSmartLogin):
 # ---- Test usage ---- #
 if __name__ == "__main__":
     creds = {
-        "user": "YMUK581",
-        "pwd": "YWbu#927",
-        "factor2": "ZS765W3OM3J4A7F2BDEB6M43MO5HA665",
-        "vc": "TUSTA",
-        "app_key": "TUSTA25032025API",
-        "imei": "HEMANGMAC"
+        "user": "",
+        "pwd": "",
+        "factor2": "",
+        "vc": "",
+        "app_key": "",
+        "imei": ""
     }
 
     ts = TradeSmart(**creds)
