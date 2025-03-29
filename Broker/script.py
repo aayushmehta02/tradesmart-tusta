@@ -33,7 +33,7 @@ def load_combined_instruments(file_path: str) -> pd.DataFrame:
 class TradeSmart(TradeSmartLogin):
     exchange_data: pd.DataFrame = None
 
-    def __init__(self):
+    def initialize_data(self):
         # exchange_data: pd.DataFrame = None
         TradeSmart.exchange_data = load_combined_instruments(r"C:\Users\aayus\OneDrive\Desktop\finance-browser\combined_instruments.csv")
         self.nfo_df = self.exchange_data[self.exchange_data['Exchange'] == 'NFO']
@@ -72,22 +72,15 @@ class TradeSmart(TradeSmartLogin):
             ), axis=1)
 
             result = df[mask]
+            print("result", result)
 
             if not result.empty:
-                if 'instrument_type' in result.columns:
-                    result = result.sort_values(['instrument_type', 'TradingSymbol'])
-                else:
-                    result = result.sort_values('TradingSymbol')
+                token = self.get_token_details(result['Exchange'].iloc[0], result['Symbol'].iloc[0])
+                print("token", token[0])
+               
 
-                display_columns = ['TradingSymbol', 'Symbol', 'Exchange', 'Token']
-                optional_columns = ['instrument_type', 'expiry', 'strike', 'lot_size']
-                display_columns.extend([col for col in optional_columns if col in result.columns])
-
-                if 'expiry' in result.columns:
-                    result['expiry'] = pd.to_datetime(result['expiry'], errors='coerce').dt.strftime('%d-%b-%Y')
-
-                get_ltp = self.get_ltp_token(exchange, result['Token'].iloc[0])
-                return get_ltp
+                get_ltp = self.get_quotes(result['Exchange'].iloc[0], str(token[0]))
+                return get_ltp.get('lp')
 
             print(f"No matches found for '{searchtext}' in {exchange}")
             return {
@@ -103,11 +96,6 @@ class TradeSmart(TradeSmartLogin):
                 'error_message': str(e),
                 'values': []
             }
-
-
-    def get_ltp_token(self, exchange, token):
-        ltp_data = self.get_quotes(exchange=exchange, token=token)
-        return ltp_data.get('lp') if ltp_data and ltp_data.get("stat") == "Ok" else "Failed to fetch LTP"
 
     def cancel_order_on_broker(self, order_id):
         response = self.cancel_order(orderno=order_id)
@@ -293,9 +281,8 @@ if __name__ == "__main__":
 
     ts = TradeSmart(**creds)
     ts.initialize_data()
-
     print("\nTesting BANKNIFTY weekly CE:")
     print(ts.get_token_details('NFO', 'BANKNIFTY', '46000', is_pe=0, expiry='W', instrumenttype='OPTIDX'))
-    print(ts.search_script('NSE', 'RELIANCE'))
+    print("get_ltp", ts.get_ltp('NSE', 'RELIANCE'))
     print("\nTesting SENSEX monthly CE:")
     print(ts.get_token_details('BFO', 'SENSEX', '72000', is_pe=0, expiry='M', instrumenttype='OPTIDX'))
