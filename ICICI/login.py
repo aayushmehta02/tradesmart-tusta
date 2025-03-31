@@ -35,7 +35,7 @@ class ICICILogin:
             UserManager.save_active_user({
             "broker": "ICICI",
             "access_token": self.api_session,
-            "api_key": None,
+            "api_key": self.api_key,
             "refresh_token": None,
             "secret_key": self.api_secret,
             "clientCode": user_id,
