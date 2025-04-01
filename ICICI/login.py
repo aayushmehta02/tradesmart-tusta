@@ -6,16 +6,16 @@ from NorenRestApiPy.NorenApi import NorenApi
 from breeze_connect import BreezeConnect #type:ignore
 
 class ICICILogin:
-    def __init__(self, api_key, api_secret, api_session, user_id):
+    def __init__(self, api_key, api_secret, api_session, tusta_user_id):
         self.api_key = api_key
         self.api_secret = api_secret
         self.api_session = api_session
-        self.user_id = user_id
+        self.tusta_user_id = tusta_user_id
        
     def icici_handle_login(self):
         try:
             user_broker_details = UserBrokerDetails.getUserBrokerDetailsByUserIdAndBroker(
-                user_id , "ICICI" #here user_id is tusta user_id
+                tusta_user_id , "ICICI" #here user_id is tusta user_id
             )
             if not all([
             user_broker_details.get('client_id')#for icici only get client id
@@ -40,7 +40,7 @@ class ICICILogin:
             "secret_key": self.api_secret,
             "clientCode": user_id,
             "name": user_name,
-            "uid": user_id,
+            "uid": tusta_user_id,
             "feed_token": None,
             "password": user_broker_details['password'],
             "yob": user_broker_details['yob']
