@@ -39,13 +39,15 @@ class ICICI_Broker:
     def get_funds(self):
         try:
             response = self.obj.get_funds()
-            print(response)
-            return response.get("Success", {})[0].get("total_bank_balance", 0)
+            bank_balance = response.get('Success', {}).get('total_bank_balance', 0)
+            return bank_balance
         except Exception as e:
-            logging.error(f"Failed to fetch funds: {e}")
+            print(f"Failed to fetch funds: {e}")
             return 0
 
-    def get_ltp(self, stock_code, exchange_code, product_type, right=None, strike_price=None, expiry_date=None):
+    def get_ltp(self, exchange_code, token):
+        right, stock_code, product_type, strike_price, expiry_date = self.filter_csv_by_token(self.instrument_df,token)
+        print(right, stock_code, product_type, strike_price, expiry_date)
         try:
             response = self.obj.get_quotes(
                 stock_code=stock_code,
@@ -55,7 +57,8 @@ class ICICI_Broker:
                 right=right,
                 strike_price=strike_price
             )
-            return response.get("Success", {}).get("ltp", 0)
+            
+            return response.get("Success", {})[0].get("ltp", 0)
         except Exception as e:
             logging.error(f"Error fetching LTP: {e}")
             return 0
@@ -155,28 +158,28 @@ class ICICI_Broker:
             # Check Series value
             series = row.get('Series', '')
             if pd.isna(series):
-                return 'others'
+                return 'cash', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
             
             if series == 'FUTURE':
-                return 'others'
+                return 'futures', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
             elif series == 'OPTION':
                 option_type = row.get('OptionType', '')
                 if pd.isna(option_type):
-                    return 'others'
+                    return 'others', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
                 
                 if option_type == 'CE':
-                    return 'call'
+                    return 'call', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
                 elif option_type == 'PE':
-                    return 'put'
+                    return 'put', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
             elif series == 'EQ':
-                return 'cash'
+                return 'others', row.get('ShortName', ''), 'cash', None, None
             
             
         except Exception as e:
             logging.error(f"Error in filter_csv_by_token: {str(e)}")
             return 'others'
 
-    def place_order_on_broker(self, symbol_token, symbol, qty, exchange_code, buy_sell, order_type, price, expiry, is_paper=False,
+    def place_order_on_broker(self, symbol_token, symbol, qty, exchange_code, buy_sell, order_type, price,  is_paper=False,
                             is_overnight=False):
         try:
             product = 'I'  # Intraday default
@@ -199,8 +202,8 @@ class ICICI_Broker:
 
             order_id = None
             average_price = 0
-            right = self.filter_csv_by_token(self.instrument_df,symbol_token)
-            if right == 'others':
+            right, stock_code, product_type, strike_price, expiry_date = self.filter_csv_by_token(self.instrument_df,symbol_token)
+            if right == 'others' and exchange_code in ['NFO', 'CDS', 'MCX', 'BFO', 'BCD']:
                 product = "futures"
             elif right == 'call' or right == 'put':
                 product = "options"
@@ -213,30 +216,33 @@ class ICICI_Broker:
                     product=product,
                     exchange_code=exchange_code,
                     quantity=qty,
-                    discloseqty=0,
+                    right=right,
                     order_type=order_type,
                     price=price,
-                    right=right,
+                    
                    
                     validity='day',
-                    remarks='TUSTA'
+
                 )
                 print(response)
-                if not response or response.get('stat') != 'Ok':
+                if not response or response.get('Success') == 'None':
                     error = response.get('emsg', 'Order placement failed')
                     print(f"Order placement failed: {error}")
                     return None, None, f"Order placement failed: {response.get('emsg', 'Unknown error')}"
 
                 order_id = response.get('order_id')
-                if not order_id:
+                if not order_id and response.get('Error') == 'Insufficient limit  :Allocate funds to increase your limit. Available Limits :0.00':
+                    return None, None, "Order placement failed: Insufficient balance"
+                else:
                     print("Order placement failed: No order number received")
                     return None, None, "Order placement failed: No order number received"
 
                 # Poll status
-                average_price, status, error_message = self.handle_order_status(order_id)
-                if not average_price:
-                    return None, None, "Order placement failed: No order number received"
-
+            average_price, status, error_message = self.handle_order_status(order_id)
+            
+            if not average_price:
+                return None, None, "Order placement failed: No order number received"
+ 
 
             else:
                 # Paper trading logic
@@ -245,7 +251,7 @@ class ICICI_Broker:
 
             # Fallback to LTP if no avg price available
             if average_price == 0 or 'average_price' not in locals():
-                average_price = self.get_ltp(symbol_token, exchange_code, 'options', right, price, expiry)
+                average_price = self.get_ltp(symbol_token, exchange_code, 'options', right, price, expiry_date)
             order_params['ltp'] = str(average_price)
             order_params['transaction_type'] = buy_sell
             order_params['tradingsymbol'] = str(symbol)
@@ -317,14 +323,15 @@ class ICICI_Broker:
 # Optional test usage
 if __name__ == "__main__":
     creds = {
-        "api_key": "677(02S7Re9a3&67k7N5#dI94!O494^0",
-        "api_secret": "060C002y9Q3p2Y37243860734k2X2H32",
-        "api_session": "51050135"
+        "api_key": "",
+        "api_secret": "",
+        "api_session": ""
     }
 
     broker = ICICI_Broker(**creds)
     broker.initialize_data()
     # print(broker.get_funds())
-    print(broker.filter_csv_by_token(broker.instrument_df,'2398'))
-    print(broker.place_order_on_broker('131604', 'TCS', 100, 'NFO', 'BUY', 'LIMIT', 50000, is_paper=False))
+    # print(broker.filter_csv_by_token(broker.instrument_df,'1660'))
+    # print(broker.place_order_on_broker('1660', "ITC", 1, 'NSE', 'buy', "limit", 450))
+    print(broker.get_ltp('NSE', '1660'))
     # print(broker.place_order_on_broker('NIFTY', 'BANKNIFTY', 100, 'NFO', 'buy', 'LIMIT', 50000, is_paper=False))
