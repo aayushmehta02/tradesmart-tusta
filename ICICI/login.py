@@ -2,31 +2,35 @@
 import urllib.parse
 
 import pyotp
+from breeze_connect import BreezeConnect  # type:ignore
 from NorenRestApiPy.NorenApi import NorenApi
-from breeze_connect import BreezeConnect #type:ignore
+
 
 class ICICILogin:
-    def __init__(self,  tusta_user_id):
+    def __init__(self, tusta_user_id):
         
         self.tusta_user_id = tusta_user_id
        
     def icici_handle_login(self):
         try:
             user_broker_details = UserBrokerDetails.getUserBrokerDetailsByUserIdAndBroker(
-                tusta_user_id , "ICICI" #here user_id is tusta user_id
+                self.tusta_user_id , "ICICI" #here user_id is tusta user_id
             )
+            api_key = user_broker_details.get('app_key')
+            api_secret = user_broker_details.get('api_secret')
+            client_id = user_broker_details.get('client_id')
             if not all([
-            user_broker_details.get('client_id')#for icici only get client id
-            user_broker_details.get('api_secret')#for icici only get api secret
-            user_broker_details.get('app_key')#for icici only get api key
+                api_key, #for icici only get client id
+                api_secret, #for icici only get api secret
+                client_id #for icici only get api key
             ]): 
                 raise BrokerError("Missing required ICICI credentials")
 
             # Initialize ICICI client and login
-            breeze = BreezeConnect(api_key=self.api_key)
-            breeze.generate_session(api_secret=self.api_secret, session_token=self.api_session)
-            user_name = breeze.get_customer_details(self.api_session).get('Success').get('idirect_user_name')
-            user_id = breeze.get_customer_details(self.api_session).get('Success').get('idirect_userid')
+            breeze = BreezeConnect(api_key=api_key)
+            breeze.generate_session(api_secret=api_secret, session_token=client_id)
+            user_name = breeze.get_customer_details(client_id).get('Success').get('idirect_user_name')
+            user_id = breeze.get_customer_details(client_id).get('Success').get('idirect_userid')
 
 
 
