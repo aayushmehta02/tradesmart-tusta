@@ -330,9 +330,9 @@ class ICICI_Broker:
 # Optional test usage
 if __name__ == "__main__":
     creds = {
-        "api_key": "677(02S7Re9a3&67k7N5#dI94!O494^0",
-        "api_secret": "060C002y9Q3p2Y37243860734k2X2H32",
-        "api_session": "51050996"
+        "api_key": "",
+        "api_secret": "",
+        "api_session": ""
     }
 
     broker = ICICI_Broker(**creds)
