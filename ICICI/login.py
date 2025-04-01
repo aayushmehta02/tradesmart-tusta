@@ -6,10 +6,8 @@ from NorenRestApiPy.NorenApi import NorenApi
 from breeze_connect import BreezeConnect #type:ignore
 
 class ICICILogin:
-    def __init__(self, api_key, api_secret, api_session, tusta_user_id):
-        self.api_key = api_key
-        self.api_secret = api_secret
-        self.api_session = api_session
+    def __init__(self,  tusta_user_id):
+        
         self.tusta_user_id = tusta_user_id
        
     def icici_handle_login(self):

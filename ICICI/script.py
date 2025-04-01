@@ -46,16 +46,17 @@ class ICICI_Broker:
             return 0
 
     def get_ltp(self, exchange_code, token):
-        right, stock_code, product_type, strike_price, expiry_date = self.filter_csv_by_token(self.instrument_df,token)
-        print(right, stock_code, product_type, strike_price, expiry_date)
+        right, row= self.filter_csv_by_token(self.instrument_df,token)
+       
+        product_type = row.get('Series').lower() if row.get('Series').lower() == 'future' or row.get('Series').lower() == 'option' else 'cash'
         try:
             response = self.obj.get_quotes(
-                stock_code=stock_code,
+                stock_code=row.get('ShortName'),
                 exchange_code=exchange_code,
-                expiry_date=expiry_date,
+                expiry_date=row.get('ExpiryDate'),
                 product_type=product_type,
                 right=right,
-                strike_price=strike_price
+                strike_price=row.get('StrikePrice')
             )
             
             return response.get("Success", {})[0].get("ltp", 0)
@@ -158,21 +159,27 @@ class ICICI_Broker:
             # Check Series value
             series = row.get('Series', '')
             if pd.isna(series):
+                return 'cash',  row
                 return 'cash', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
             
             if series == 'FUTURE':
+                return 'futures', row
                 return 'futures', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
             elif series == 'OPTION':
                 option_type = row.get('OptionType', '')
                 if pd.isna(option_type):
+                    return 'others', row
                     return 'others', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
                 
                 if option_type == 'CE':
+                    return 'call', row
                     return 'call', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
                 elif option_type == 'PE':
+                    return 'put', row
                     return 'put', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
             elif series == 'EQ':
-                return 'others', row.get('ShortName', ''), 'cash', None, None
+                return 'others', row
+                return 'cash', row.get('ShortName', ''), series.lower(), None, None
             
             
         except Exception as e:
@@ -202,7 +209,7 @@ class ICICI_Broker:
 
             order_id = None
             average_price = 0
-            right, stock_code, product_type, strike_price, expiry_date = self.filter_csv_by_token(self.instrument_df,symbol_token)
+            right, row = self.filter_csv_by_token(self.instrument_df,symbol_token)
             if right == 'others' and exchange_code in ['NFO', 'CDS', 'MCX', 'BFO', 'BCD']:
                 product = "futures"
             elif right == 'call' or right == 'put':
@@ -251,7 +258,7 @@ class ICICI_Broker:
 
             # Fallback to LTP if no avg price available
             if average_price == 0 or 'average_price' not in locals():
-                average_price = self.get_ltp(symbol_token, exchange_code, 'options', right, price, expiry_date)
+                average_price = self.get_ltp(symbol_token, exchange_code, 'options', right, price, row.get('ExpiryDate'))
             order_params['ltp'] = str(average_price)
             order_params['transaction_type'] = buy_sell
             order_params['tradingsymbol'] = str(symbol)
@@ -323,9 +330,9 @@ class ICICI_Broker:
 # Optional test usage
 if __name__ == "__main__":
     creds = {
-        "api_key": "",
-        "api_secret": "",
-        "api_session": ""
+        "api_key": "677(02S7Re9a3&67k7N5#dI94!O494^0",
+        "api_secret": "060C002y9Q3p2Y37243860734k2X2H32",
+        "api_session": "51050996"
     }
 
     broker = ICICI_Broker(**creds)
