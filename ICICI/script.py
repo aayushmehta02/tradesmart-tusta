@@ -54,13 +54,17 @@ class ICICI_Broker:
             product_type = "futures"
         else:
             product_type = "cash"
-        # product_type = 'futures' if row.get('Series').lower() == 'future' or 'option' == 'options' else 'cash'
+    
         print(product_type)
-        if exchange_code == "BSESEN" or exchange_code == "BANKEX":
-            exchange_code = "bfo"
+        if exchange_code in ["BSESEN", "BANKEX"]:
+          exchange_code = "BFO"
+        elif exchange_code == "NSE":
+            exchange_code = "NSE"
+        elif exchange_code == "BSE":
+            exchange_code = "BSE"
         else:
-            if exchange_code != "NSE" and exchange_code !=  "BSE":
-                exchange_code = "nfo"
+            exchange_code = "NFO"
+
         print(exchange_code)
         expiry_raw = row.get("ExpiryDate")
         expiry_date = ""
@@ -68,18 +72,35 @@ class ICICI_Broker:
         if pd.notnull(expiry_raw) and str(expiry_raw).strip() != "":
             expiry_dt = pd.to_datetime(expiry_raw, errors='coerce')
             if pd.notnull(expiry_dt):
-                expiry_date = expiry_dt.strftime('%Y-%m-%dT%H:%M:%S.000Z')
+                expiry_date = expiry_dt.strftime('%Y-%m-%dT06:00:00.000Z')
         print(expiry_date)
+        strike_price = row.get("StrikePrice")
+        if pd.isna(strike_price):
+            strike_price = "0"
+        else:
+            strike_price = str(int(float(strike_price))) if float(strike_price).is_integer() else str(strike_price)
+
+        print("DEBUG PARAMS -->",
+      row.get("ShortName"),
+      exchange_code,
+      expiry_date,
+      product_type,
+      right,
+      strike_price)
 
         try:
             response = self.obj.get_quotes(
-                stock_code=row.get('ShortName'),
-                exchange_code=exchange_code,
-                expiry_date=row.get('ExpiryDate'),
-                product_type=product_type,
-                right=right,
-                strike_price=row.get('StrikePrice')
-            )
+            stock_code=row.get("ShortName"),
+            exchange_code=exchange_code,
+            expiry_date=expiry_date,
+            product_type=product_type,
+            right=right,
+            strike_price=strike_price
+        )
+
+
+            print(response)
+
             
             success_list = response.get("Success", [])
             for item in success_list:
@@ -241,30 +262,68 @@ class ICICI_Broker:
                 product = "options"
             else:
                 product = "cash"
-            if not is_paper:
-                response = self.obj.place_order(
-                    stock_code=symbol,
-                    action=buy_sell,
-                    product=product,
-                    exchange_code=exchange_code,
-                    quantity=qty,
-                    right=right,
-                    order_type=order_type,
-                    price=price,
-                    
-                   
-                    validity='day',
+            # Expiry and strike for derivatives, else empty
+            expiry_date = (row.get("ExpiryDate") + "T06:00:00.000Z") if product in ["futures", "options"] else ""
+            strike_price_raw = row.get("StrikePrice", 0)
+            strike_price = str(int(float(strike_price_raw))) if product == "options" else "0"
+            symbol_map = {'NIFTY': 'NIFTY', 'BANKNIFTY': 'CNXBAN', 'FINNIFTY': "NIFFIN"}
+            symbol = symbol_map.get(symbol, symbol)
+            print("DEBUG ORDER PARAMS:",
+      f"stock_code={symbol}",
+      f"exchange_code={exchange_code}",
+      f"product={product}",
+      f"expiry_date={expiry_date}",
+      f"strike_price={strike_price}({type(strike_price)})",
+      f"right={right}")
 
+            
+
+            # Prepare order params
+            if not is_paper:
+                print("Order Params:", {
+    "stock_code": symbol,
+    "exchange_code": exchange_code,
+    "product": product,
+    "action": buy_sell.lower(),
+    "order_type": order_type.lower(),
+    "stoploss": "0",
+    "quantity": str(qty),
+    "price": str(price) if order_type.lower() == "limit" else "0",
+    "validity": "day",
+    "validity_date": "",
+    "disclosed_quantity": "0",
+    "expiry_date": expiry_date or "",
+    "right": right,
+    "strike_price": strike_price or "0",
+})
+
+                response=self.obj.place_order(
+                    stock_code= symbol,
+                    exchange_code= exchange_code,
+                    product=product,
+                    action=buy_sell.lower(),
+                    order_type= order_type.lower(),
+                    stoploss="0",
+                    quantity= str(qty),
+                    price=str(price) if order_type.lower() == "limit" else "0",
+                    validity= "day",
+                    validity_date="",
+                    disclosed_quantity ="0",
+                    expiry_date=expiry_date or "",
+                    right= right,
+                    strike_price= strike_price or "0",
+                    # "user_remark": f"{symbol} {product}"
                 )
                 print(response)
+                  
                 if not response or response.get('Success') == 'None':
-                    error = response.get('emsg', 'Order placement failed')
-                    print(f"Order placement failed: {error}")
-                    return None, None, f"Order placement failed: {response.get('emsg', 'Unknown error')}"
+                            error = response.get('emsg', 'Order placement failed')
+                            print(f"Order placement failed: {error}")
+                            return None, None, f"Order placement failed: {response.get('emsg', 'Unknown error')}"
 
                 order_id = response.get('order_id')
                 if not order_id and response.get('Error') == 'Insufficient limit  :Allocate funds to increase your limit. Available Limits :0.00':
-                    return None, None, "Order placement failed: Insufficient balance"
+                            return None, None, "Order placement failed: Insufficient balance"
                 else:
                     
 
@@ -362,7 +421,7 @@ if __name__ == "__main__":
     broker.initialize_data()
     #print(broker.get_funds())
     #print(broker.filter_csv_by_token(broker.instrument_df,'1660'))
-    print(broker.place_order_on_broker('1660', "ITC", 1, 'NSE', 'buy', "limit", 450, is_paper=True))
+    print(broker.place_order_on_broker('1660', "ITC", 1, 'NSE', 'buy', "limit", 450, is_paper=False))
     #print(3, broker.get_icici_token_details('NFO', 'NIFTY', '24000', '1', 'NW', 'FUTIDX'))
     #print(broker.place_order_on_broker('', 'BANKNIFTY', 100, 'NFO', 'buy', 'LIMIT', 50000, is_paper=False))
     # print(19, broker.get_icici_token_details('BFO', 'BANKEX', '26000', '1', 'NM', 'FUTIDX'))
@@ -370,6 +429,6 @@ if __name__ == "__main__":
    
 
 
-    #print(broker.get_ltp('NIFTY', 54452))
-    print(broker.place_order_on_broker(861616, 'BSESEN', 20, 'BFO', 'BUY', 'MARKET', 0, True, False))
-    print(broker.place_order_on_broker('55980', 'BANKNIFTY', 100, 'NFO', 'buy', 'LIMIT', 50000, is_paper=True))
+    #print(broker.get_ltp('BSESEN', 861616))
+    print(broker.place_order_on_broker(54452, 'NIFTY', 10, 'NFO', 'BUY', 'MARKET', 0, False, False))
+    print(broker.place_order_on_broker('55980', 'BANKNIFTY', 100, 'NFO', 'BUY', 'LIMIT', 50000, is_paper=False))
