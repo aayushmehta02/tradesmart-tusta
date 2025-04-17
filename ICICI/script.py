@@ -56,7 +56,7 @@ class ICICI_Broker:
             product_type = "cash"
     
         print(product_type)
-        if exchange_code in ["BSESEN", "BANKEX"]:
+        if exchange_code in ["BSESEN", "BANKEX", "BFO"]:
           exchange_code = "BFO"
         elif exchange_code == "NSE":
             exchange_code = "NSE"
@@ -413,22 +413,22 @@ class ICICI_Broker:
 # Optional test usage
 if __name__ == "__main__":
     creds = {
-        "api_key": "",
-        "api_secret": "",
-        "api_session": ""
+        "api_key": "677(02S7Re9a3&67k7N5#dI94!O494^0",
+        "api_secret": "060C002y9Q3p2Y37243860734k2X2H32",
+        "api_session": "51231459"
     }
     broker = ICICI_Broker(**creds)
     broker.initialize_data()
     #print(broker.get_funds())
     #print(broker.filter_csv_by_token(broker.instrument_df,'1660'))
-    print(broker.place_order_on_broker('1660', "ITC", 1, 'NSE', 'buy', "limit", 450, is_paper=False))
+    #print(broker.place_order_on_broker('1660', "ITC", 1, 'NSE', 'buy', "limit", 450, is_paper=False))
     #print(3, broker.get_icici_token_details('NFO', 'NIFTY', '24000', '1', 'NW', 'FUTIDX'))
     #print(broker.place_order_on_broker('', 'BANKNIFTY', 100, 'NFO', 'buy', 'LIMIT', 50000, is_paper=False))
-    # print(19, broker.get_icici_token_details('BFO', 'BANKEX', '26000', '1', 'NM', 'FUTIDX'))
-    #print(broker.place_order_on_broker(861616, 'BSESEN', 20, 'BFO', 'BUY', 'LIMIT', 0, True, False))
+    #print(19, broker.get_icici_token_details('BFO', 'BANKEX', '26000', '1', 'NM', 'FUTIDX'))
+    print(broker.place_order_on_broker(861616, 'BSESEN', 20, 'BFO', 'BUY', 'LIMIT', 0, True, False))
    
 
 
-    #print(broker.get_ltp('BSESEN', 861616))
-    print(broker.place_order_on_broker(54452, 'NIFTY', 10, 'NFO', 'BUY', 'MARKET', 0, False, False))
-    print(broker.place_order_on_broker('55980', 'BANKNIFTY', 100, 'NFO', 'BUY', 'LIMIT', 50000, is_paper=False))
+    #print(broker.get_ltp('BANKNIFTY', 55980))
+    #print(broker.place_order_on_broker(54452, 'NIFTY', 1, 'NFO', 'BUY', 'MARKET', 0, False, False))
+    #print(broker.place_order_on_broker('55980', 'BANKNIFTY', 1, 'NFO', 'BUY', 'LIMIT', 50000, is_paper=False))
