@@ -29,7 +29,7 @@ class ICICI_Broker:
 
     def initialize_data(self):
         ICICI_Broker.instrument_df = load_combined_instruments(
-            r"C:\Users\aayus\OneDrive\Desktop\finance-browser\combined_instrument_data_icici.csv"
+            r"/content/combined_instrument_data.csv"
         )
         logging.info("Instrument data loaded successfully.")
 
@@ -47,8 +47,30 @@ class ICICI_Broker:
 
     def get_ltp(self, exchange_code, token):
         right, row= self.filter_csv_by_token(self.instrument_df,token)
-       
-        product_type = row.get('Series').lower() if row.get('Series').lower() == 'future' or row.get('Series').lower() == 'option' else 'cash'
+        print(right, row.get('Series').lower())
+        if row.get('Series').lower() == "option":
+            product_type = "options"
+        elif row.get('Series').lower() == "future":
+            product_type = "futures"
+        else:
+            product_type = "cash"
+        # product_type = 'futures' if row.get('Series').lower() == 'future' or 'option' == 'options' else 'cash'
+        print(product_type)
+        if exchange_code == "BSESEN" or exchange_code == "BANKEX":
+            exchange_code = "bfo"
+        else:
+            if exchange_code != "NSE" and exchange_code !=  "BSE":
+                exchange_code = "nfo"
+        print(exchange_code)
+        expiry_raw = row.get("ExpiryDate")
+        expiry_date = ""
+
+        if pd.notnull(expiry_raw) and str(expiry_raw).strip() != "":
+            expiry_dt = pd.to_datetime(expiry_raw, errors='coerce')
+            if pd.notnull(expiry_dt):
+                expiry_date = expiry_dt.strftime('%Y-%m-%dT%H:%M:%S.000Z')
+        print(expiry_date)
+
         try:
             response = self.obj.get_quotes(
                 stock_code=row.get('ShortName'),
@@ -59,7 +81,10 @@ class ICICI_Broker:
                 strike_price=row.get('StrikePrice')
             )
             
-            return response.get("Success", {})[0].get("ltp", 0)
+            success_list = response.get("Success", [])
+            for item in success_list:
+                if item.get("exchange_code") == exchange_code:
+                    return item.get("ltp", 0)
         except Exception as e:
             logging.error(f"Error fetching LTP: {e}")
             return 0
@@ -163,23 +188,23 @@ class ICICI_Broker:
                 return 'cash', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
             
             if series == 'FUTURE':
-                return 'futures', row
-                return 'futures', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
+                return 'others', row
+                
             elif series == 'OPTION':
                 option_type = row.get('OptionType', '')
                 if pd.isna(option_type):
                     return 'others', row
-                    return 'others', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
+                    
                 
                 if option_type == 'CE':
                     return 'call', row
-                    return 'call', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
+                    
                 elif option_type == 'PE':
                     return 'put', row
-                    return 'put', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
+                    
             elif series == 'EQ':
                 return 'others', row
-                return 'cash', row.get('ShortName', ''), series.lower(), None, None
+                
             
             
         except Exception as e:
@@ -241,14 +266,13 @@ class ICICI_Broker:
                 if not order_id and response.get('Error') == 'Insufficient limit  :Allocate funds to increase your limit. Available Limits :0.00':
                     return None, None, "Order placement failed: Insufficient balance"
                 else:
-                    print("Order placement failed: No order number received")
-                    return None, None, "Order placement failed: No order number received"
+                    
 
-                # Poll status
-            average_price, status, error_message = self.handle_order_status(order_id)
-            
-            if not average_price:
-                return None, None, "Order placement failed: No order number received"
+                    # Poll status
+                    average_price, status, error_message = self.handle_order_status(order_id)
+                
+                    if not average_price:
+                        return None, None, "Order placement failed: No order number received"
  
 
             else:
@@ -258,7 +282,7 @@ class ICICI_Broker:
 
             # Fallback to LTP if no avg price available
             if average_price == 0 or 'average_price' not in locals():
-                average_price = self.get_ltp(symbol_token, exchange_code, 'options', right, price, row.get('ExpiryDate'))
+                average_price = self.get_ltp( exchange_code,symbol_token)
             order_params['ltp'] = str(average_price)
             order_params['transaction_type'] = buy_sell
             order_params['tradingsymbol'] = str(symbol)
@@ -334,11 +358,18 @@ if __name__ == "__main__":
         "api_secret": "",
         "api_session": ""
     }
-
     broker = ICICI_Broker(**creds)
     broker.initialize_data()
-    # print(broker.get_funds())
-    # print(broker.filter_csv_by_token(broker.instrument_df,'1660'))
-    # print(broker.place_order_on_broker('1660', "ITC", 1, 'NSE', 'buy', "limit", 450))
-    print(broker.get_ltp('NSE', '1660'))
-    # print(broker.place_order_on_broker('NIFTY', 'BANKNIFTY', 100, 'NFO', 'buy', 'LIMIT', 50000, is_paper=False))
+    #print(broker.get_funds())
+    #print(broker.filter_csv_by_token(broker.instrument_df,'1660'))
+    print(broker.place_order_on_broker('1660', "ITC", 1, 'NSE', 'buy', "limit", 450, is_paper=True))
+    #print(3, broker.get_icici_token_details('NFO', 'NIFTY', '24000', '1', 'NW', 'FUTIDX'))
+    #print(broker.place_order_on_broker('', 'BANKNIFTY', 100, 'NFO', 'buy', 'LIMIT', 50000, is_paper=False))
+    # print(19, broker.get_icici_token_details('BFO', 'BANKEX', '26000', '1', 'NM', 'FUTIDX'))
+    #print(broker.place_order_on_broker(861616, 'BSESEN', 20, 'BFO', 'BUY', 'LIMIT', 0, True, False))
+   
+
+
+    #print(broker.get_ltp('NIFTY', 54452))
+    print(broker.place_order_on_broker(861616, 'BSESEN', 20, 'BFO', 'BUY', 'MARKET', 0, True, False))
+    print(broker.place_order_on_broker('55980', 'BANKNIFTY', 100, 'NFO', 'buy', 'LIMIT', 50000, is_paper=True))
