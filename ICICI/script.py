@@ -216,7 +216,7 @@ class ICICI_Broker:
             series = row.get('Series', '')
             if pd.isna(series):
                 return 'cash',  row
-                return 'cash', row.get('ShortName', ''), series.lower(), row.get('StrikePrice', ''), row.get('ExpiryDate', '')
+                
             
             if series == 'FUTURE':
                 return 'others', row
