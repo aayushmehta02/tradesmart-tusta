@@ -29,7 +29,7 @@ class ICICI_Broker:
 
     def initialize_data(self):
         ICICI_Broker.instrument_df = load_combined_instruments(
-            r"/content/combined_instrument_data.csv"
+            r"C:\Users\aayus\OneDrive\Desktop\fyers\combined_instrument_data.csv"
         )
         logging.info("Instrument data loaded successfully.")
 
@@ -46,7 +46,7 @@ class ICICI_Broker:
             return 0
 
     def get_ltp(self, exchange_code, token):
-        right, row= self.filter_csv_by_token(self.instrument_df,token)
+        right, row= self.filter_csv_by_token(token)
         print(right, row.get('Series').lower())
         if row.get('Series').lower() == "option":
             product_type = "options"
@@ -56,7 +56,7 @@ class ICICI_Broker:
             product_type = "cash"
     
         print(product_type)
-        if exchange_code in ["BSESEN", "BANKEX", "BFO"]:
+        if exchange_code in ["BSESEN", "BANKEX"]:
           exchange_code = "BFO"
         elif exchange_code == "NSE":
             exchange_code = "NSE"
@@ -148,13 +148,20 @@ class ICICI_Broker:
                 (df['ShortName'] == symbol) &
                 (df['Series'] == 'FUTURE')
             ]
-        return df[
-            (df['ShortName'] == symbol) &
-            (df['ExAllowed'] == exch_seg) &
-            (df['StrikePrice'] == strike_price) &
-            (df['Series'] == 'OPTION') &
-            (df['OptionType'] == ce_pe)
-        ]
+        else:
+            if ce_pe == "put":
+                ce_pe = "PE"
+            else:
+                ce_pe = "CE"
+            print(symbol, exch_seg, strike_price, ce_pe)
+            return df[
+                (df['ShortName'] == symbol) &
+                (df['ExAllowed'] == exch_seg) &
+                (df['StrikePrice'] == strike_price) &
+                (df['Series'] == 'OPTION') &
+                (df['OptionType'] == ce_pe)
+            ]
+            
 
     @classmethod
     def get_icici_token_details(cls, exch_seg, symbol, strike_price=None, is_pe=None, expiry='W', instrumenttype=None):
@@ -167,14 +174,14 @@ class ICICI_Broker:
             df_filtered = cls.filter_fno_instruments(
                 df, exch_seg, symbol_map.get(symbol, symbol), strike_price, ce_pe, instrumenttype
             )
+            print(df_filtered)
             if df_filtered is None or df_filtered.empty:
                 logging.warning(f"No token found for {symbol} {strike_price}{ce_pe} in {exch_seg}")
                 return None, None, None
             token_info = cls.filter_by_expiry(df_filtered, expiry)
         else:
             df_filtered = df[(df['Series'] == 'EQ') &
-                           (df['ShortName'] == symbol) & 
-                           (df['ExAllowed'] == exch_seg)]
+                           (df['ShortName'] == symbol)    ]
             if df_filtered.empty:
                 logging.warning(f"No token found for {symbol} in {exch_seg}")
                 return None, None, None
@@ -185,7 +192,7 @@ class ICICI_Broker:
         else:
             return None, None, None
 
-    def filter_csv_by_token(self, df, token):
+    def filter_csv_by_token(self, token):
         try:
             # Convert token to string and create a copy of the dataframe
             token = str(token)
@@ -255,7 +262,7 @@ class ICICI_Broker:
 
             order_id = None
             average_price = 0
-            right, row = self.filter_csv_by_token(self.instrument_df,symbol_token)
+            right, row = self.filter_csv_by_token(symbol_token)
             if right == 'others' and exchange_code in ['NFO', 'CDS', 'MCX', 'BFO', 'BCD']:
                 product = "futures"
             elif right == 'call' or right == 'put':
@@ -415,7 +422,7 @@ if __name__ == "__main__":
     creds = {
         "api_key": "677(02S7Re9a3&67k7N5#dI94!O494^0",
         "api_secret": "060C002y9Q3p2Y37243860734k2X2H32",
-        "api_session": "51231459"
+        "api_session": "51233285"
     }
     broker = ICICI_Broker(**creds)
     broker.initialize_data()
@@ -425,10 +432,34 @@ if __name__ == "__main__":
     #print(3, broker.get_icici_token_details('NFO', 'NIFTY', '24000', '1', 'NW', 'FUTIDX'))
     #print(broker.place_order_on_broker('', 'BANKNIFTY', 100, 'NFO', 'buy', 'LIMIT', 50000, is_paper=False))
     #print(19, broker.get_icici_token_details('BFO', 'BANKEX', '26000', '1', 'NM', 'FUTIDX'))
-    print(broker.place_order_on_broker(861616, 'BSESEN', 20, 'BFO', 'BUY', 'LIMIT', 0, True, False))
+    #print(broker.place_order_on_broker(861616, 'BSESEN', 20, 'BFO', 'BUY', 'LIMIT', 0, True, False))
    
 
 
     #print(broker.get_ltp('BANKNIFTY', 55980))
-    #print(broker.place_order_on_broker(54452, 'NIFTY', 1, 'NFO', 'BUY', 'MARKET', 0, False, False))
-    #print(broker.place_order_on_broker('55980', 'BANKNIFTY', 1, 'NFO', 'BUY', 'LIMIT', 50000, is_paper=False))
+    # print(broker.place_order_on_broker(54452, 'NIFTY', 1, 'NFO', 'BUY', 'MARKET', 0, False, False))
+    # print(broker.place_order_on_broker('55980', 'BANKNIFTY', 1, 'NFO', 'BUY', 'LIMIT', 50000, is_paper=False))
+    print("\nCash Order Test (NSE, TCS):")
+    token, symbol, lot_size = broker.get_icici_token_details('NSE', 'TCS')
+    print("Token:", token, "| Symbol:", symbol, "| Lot size:", lot_size)
+    print(broker.place_order_on_broker(token, symbol, 1, 'NSE', "BUY", "MARKET", 0, is_paper=False))
+
+    print("\nFNO Order Test (NFO, NIFTY, 23000 PE, Weekly):")
+    token, symbol, lot_size = broker.get_icici_token_details('NFO', 'NIFTY', 23000, 1, 'W', 'OPTIDX')
+    print("Token:", token, "| Symbol:", symbol, "| Lot size:", lot_size)
+    print(broker.place_order_on_broker(token, symbol, 75, 'NFO', "BUY", "MARKET", 0, is_paper=False))
+
+    print("\nFutures Order Test (NFO, NIFTY, Monthly FUTIDX):")
+    token, symbol, lot_size = broker.get_icici_token_details('NFO', 'NIFTY', expiry='M', instrumenttype='FUTIDX')
+    print("Token:", token, "| Symbol:", symbol, "| Lot size:", lot_size)
+    print(broker.place_order_on_broker(token, symbol, 75, 'NFO', "BUY", "MARKET", 0, is_paper=False))
+
+    print("\nSensex Option (BFO, SENSEX, 77400 CE, Weekly):")
+    token, symbol, lot_size = broker.get_icici_token_details('BFO', 'SENSEX', 77400, 0, 'W', 'OPTIDX')
+    print("Token:", token, "| Symbol:", symbol, "| Lot size:", lot_size)
+    print(broker.place_order_on_broker(token, symbol, 20, 'BFO', "BUY", "MARKET", 0, is_paper=False))
+
+    print("\nLTP Examples:")
+    print("NSE:", broker.get_ltp('NSE', 54452))  # Last token from above
+    print("NFO:", broker.get_ltp('NFO', 130741))  # Same
+    print(broker.get_funds())
