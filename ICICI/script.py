@@ -154,6 +154,8 @@ class ICICI_Broker:
             else:
                 ce_pe = "CE"
             print(symbol, exch_seg, strike_price, ce_pe)
+            if symbol == "SENSEX":
+                symbol = "BSESEN"
             return df[
                 (df['ShortName'] == symbol) &
                 (df['ExAllowed'] == exch_seg) &
@@ -171,6 +173,7 @@ class ICICI_Broker:
         symbol_map = {'NIFTY': 'NIFTY', 'BANKNIFTY': 'CNXBAN', 'FINNIFTY': "NIFFIN"}
 
         if exch_seg in ['NFO', 'CDS', 'MCX', 'BFO', 'BCD']:
+            print("token inputs:",exch_seg, symbol_map.get(symbol, symbol), strike_price, ce_pe, instrumenttype)
             df_filtered = cls.filter_fno_instruments(
                 df, exch_seg, symbol_map.get(symbol, symbol), strike_price, ce_pe, instrumenttype
             )
@@ -275,6 +278,7 @@ class ICICI_Broker:
             strike_price = str(int(float(strike_price_raw))) if product == "options" else "0"
             symbol_map = {'NIFTY': 'NIFTY', 'BANKNIFTY': 'CNXBAN', 'FINNIFTY': "NIFFIN"}
             symbol = symbol_map.get(symbol, symbol)
+            
             print("DEBUG ORDER PARAMS:",
       f"stock_code={symbol}",
       f"exchange_code={exchange_code}",
@@ -422,7 +426,7 @@ if __name__ == "__main__":
     creds = {
         "api_key": "677(02S7Re9a3&67k7N5#dI94!O494^0",
         "api_secret": "060C002y9Q3p2Y37243860734k2X2H32",
-        "api_session": "51233285"
+        "api_session": "51233345"
     }
     broker = ICICI_Broker(**creds)
     broker.initialize_data()
@@ -444,8 +448,8 @@ if __name__ == "__main__":
     print("Token:", token, "| Symbol:", symbol, "| Lot size:", lot_size)
     print(broker.place_order_on_broker(token, symbol, 1, 'NSE', "BUY", "MARKET", 0, is_paper=False))
 
-    print("\nFNO Order Test (NFO, NIFTY, 23000 PE, Weekly):")
-    token, symbol, lot_size = broker.get_icici_token_details('NFO', 'NIFTY', 23000, 1, 'W', 'OPTIDX')
+    print("\nFNO Order Test (NFO, NIFTY, 28500 PE, Monthly):")
+    token, symbol, lot_size = broker.get_icici_token_details('NFO', 'NIFTY', 28500, 1, 'M', 'OPTIDX')
     print("Token:", token, "| Symbol:", symbol, "| Lot size:", lot_size)
     print(broker.place_order_on_broker(token, symbol, 75, 'NFO', "BUY", "MARKET", 0, is_paper=False))
 
